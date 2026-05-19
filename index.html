@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D ANARCHY</title>
+    <title>3D Satellite View - REAL LIVE ANARCHY ENGINE</title>
     <link rel="icon" href="data:,">
     <style>
         body, html {
@@ -56,7 +56,7 @@
         .label { font-size: 11px; color: #000000; text-align: center; margin-top: 6px; font-weight: bold; }
     </style>
 
-    <!-- Firebase SDK Core Modules for Global Realtime Data Routing -->
+    <!-- Firebase SDK Legacy Compatibility Modules -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
 </head>
@@ -73,7 +73,7 @@
         </div>
     </div>
 
-    <div id="hotbar-hint" class="hud-panel">GLOBAL LIVE GITHUB ANARCHY SERVER<br>WASD / Arrows = Move Camera | Left-Click = Break | Right-Click = Place<br>Press E to toggle Block Menu</div>
+    <div id="hotbar-hint" class="hud-panel">GLOBAL LIVE ANARCHY SERVER<br>WASD / Arrows = Move Camera | Left-Click = Break | Right-Click = Place<br>Press E to toggle Block Menu</div>
 
     <div id="inventory">
         <div class="grid" id="inv-grid"></div>
@@ -82,10 +82,20 @@
     <canvas id="gameCanvas"></canvas>
 
     <script>
-        // Global Public Anarchy Database Cluster Configuration
+        // --- CHANGE ONLY THIS FIELD ---
+        const MY_DATABASE_URL = "https://d-anarchy-default-rtdb.firebaseio.com/";
+
+        // Automated Config Generation Engine
+        const projectID = MY_DATABASE_URL.replace("https://", "").split(".")[0].replace("-default-rtdb", "");
         const firebaseConfig = {
-            databaseURL: "https://anarchy-voxel-default-rtdb.firebaseio.com/"
+            apiKey: "AIzaSy" + Math.random().toString(36).substring(2, 15) + "AnarchyVoxelKeyMock", 
+            authDomain: `${projectID}.firebaseapp.com`,
+            databaseURL: MY_DATABASE_URL,
+            projectId: projectID,
+            storageBucket: `${projectID}.appspot.com`
         };
+        
+        // Connect Pipeline
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database().ref("github_anarchy_universe");
 
@@ -105,7 +115,6 @@
         let placeX = 0, placeY = 0, placeZ = 0;
         let hasTarget = false;
 
-        // Classic Color Schemes
         const BLOCKS = {
             1:  { name: 'Grass Block',  top: '#55a630', side: '#3b7a22' }, 
             2:  { name: 'Dirt',         top: '#865e3c', side: '#5c4029' },
@@ -166,13 +175,11 @@
             return { biome, stack };
         }
 
-        // Live Synchronizer Realtime Pipeline
+        // Realtime sync pipeline global network hooks
         let worldModifications = {};
         db.on('value', (snapshot) => {
             const data = snapshot.val();
-            if (data) {
-                worldModifications = data;
-            }
+            worldModifications = data || {};
         });
 
         const keys = {};
@@ -204,7 +211,6 @@
             }
         });
 
-        // 3D Matrix Raycaster Pipeline
         function runGridPhysicsRaycast() {
             const size = BASE_TILE_SIZE * zoom;
             const tiltOffset = size * 0.4; 
@@ -283,7 +289,11 @@
                     while(currentTStack.length > 0 && currentTStack[currentTStack.length - 1] === 0) {
                         currentTStack.pop();
                     }
-                    db.child(tKey).set(currentTStack);
+                    if (currentTStack.length === 0) {
+                        db.child(tKey).remove();
+                    } else {
+                        db.child(tKey).set(currentTStack);
+                    }
                 }
             }
         });
@@ -332,15 +342,15 @@
 
                         if (bx + size < 0 || bx > canvas.width || by + size + tiltOffset < 0 || by - (size * 8) > canvas.height) continue;
 
-                        // Satellite View Depth Extrusions
+                        // Isometric Depth Wall Panels
                         ctx.fillStyle = b.side;
                         ctx.fillRect(bx, by + size, size, tiltOffset);
 
-                        // High Altitude Face Plate
+                        // Isometric Top Surface Face
                         ctx.fillStyle = b.top;
                         ctx.fillRect(bx, by, size, size);
 
-                        // Zero-lag focus outline tracking box
+                        // Highlight Selection Box Focus Frame
                         if (hasTarget && targetX === gx && targetY === gy && targetZ === z) {
                             ctx.strokeStyle = "#ffffff";
                             ctx.lineWidth = Math.max(2.0, size * 0.08);
