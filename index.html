@@ -2,14 +2,15 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Satellite View - REAL LIVE ANARCHY ENGINE</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>3D ANARCHY</title>
     <link rel="icon" href="data:,">
     <style>
         body, html {
             margin: 0; padding: 0; overflow: hidden;
             background: #111; font-family: monospace;
             user-select: none; -webkit-user-select: none;
+            touch-action: none;
         }
         canvas { display: block; width: 100vw; height: 100vh; }
         
@@ -17,15 +18,18 @@
         .hud-panel {
             position: absolute; color: #000000;
             background: #ffffff;
-            padding: 10px 14px; border-radius: 0px; pointer-events: none;
+            padding: 10px 14px; border-radius: 0px; 
             border: 3px solid #000000;
             font-size: 13px; font-weight: bold;
+            z-index: 10;
+            transition: opacity 0.15s ease-in-out;
         }
-        #coords-panel { bottom: 20px; left: 20px; }
+        #coords-panel { bottom: 20px; left: 20px; pointer-events: none; }
         
         #compass-panel { 
             top: 20px; right: 20px; width: 60px; height: 60px;
             display: flex; align-items: center; justify-content: center;
+            pointer-events: none;
         }
         .compass-box { position: relative; width: 100%; height: 100%; }
         .dir { position: absolute; font-weight: bold; font-size: 12px; color: #000; }
@@ -34,18 +38,46 @@
         .w { left: 4px; top: 50%; transform: translateY(-50%); }
         .e { right: 4px; top: 50%; transform: translateY(-50%); }
 
-        #hotbar-hint { bottom: 20px; left: 50%; transform: translateX(-50%); text-align: center; }
+        #hotbar-hint { bottom: 20px; left: 50%; transform: translateX(-50%); text-align: center; pointer-events: none; }
         
+        /* Top Left Speed Control Panel */
+        #speed-panel {
+            top: 20px; left: 20px;
+            display: flex; align-items: center; gap: 8px;
+            pointer-events: auto;
+        }
+        #speed-input {
+            background: #ffffff; color: #000000;
+            border: 2px solid #000000; font-family: monospace;
+            font-weight: bold; font-size: 13px;
+            width: 55px; padding: 4px 6px; border-radius: 0px;
+            outline: none; box-sizing: border-box;
+        }
+        #speed-input:focus { background: #a3e635; }
+
+        #signature-panel { bottom: 20px; right: 20px; font-size: 10px; padding: 6px 10px; pointer-events: none; }
+
+        /* Master GUI Visibility Controller Button */
+        #gui-toggle-btn {
+            position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+            background: #ffffff; color: #000; border: 3px solid #000;
+            font-family: monospace; font-weight: bold; font-size: 12px;
+            padding: 8px 14px; cursor: pointer; border-radius: 0px; z-index: 100;
+        }
+        #gui-toggle-btn:active { background: #eeeeee; }
+
         /* Sharp White Grid Inventory */
         #inventory {
             display: none; position: absolute; top: 50%; left: 50%;
             transform: translate(-50%, -50%); background: #ffffff;
             border: 4px solid #000000; padding: 20px; border-radius: 0px;
-            pointer-events: auto;
+            pointer-events: auto; z-index: 110;
+            max-height: 80vh; overflow-y: auto;
         }
         .grid { display: grid; grid-template-columns: repeat(4, 80px); gap: 10px; }
+        @media(max-width: 450px) { .grid { grid-template-columns: repeat(3, 75px); } }
         .slot {
-            width: 80px; height: 80px; border: 2px solid #000000; 
+            width: 100%; height: 80px; border: 2px solid #000000; 
             background: #ffffff; border-radius: 0px; cursor: pointer;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
             box-sizing: border-box;
@@ -53,7 +85,35 @@
         .slot:hover { background: #eeeeee; }
         .slot.active { background: #a3e635; border-width: 3px; }
         .preview { width: 30px; height: 30px; border: 1px solid #000; }
-        .label { font-size: 11px; color: #000000; text-align: center; margin-top: 6px; font-weight: bold; }
+        .label { font-size: 10px; color: #000000; text-align: center; margin-top: 4px; font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 100%; }
+
+        /* Mobile Layout HUD Additions */
+        .mobile-dpad {
+            display: none; position: absolute; bottom: 120px; right: 20px;
+            grid-template-columns: repeat(3, 50px); grid-template-rows: repeat(3, 50px);
+            gap: 5px; z-index: 10;
+        }
+        .dpad-btn {
+            background: #ffffff; color: #000; border: 3px solid #000;
+            font-family: monospace; font-weight: bold; font-size: 18px;
+            display: flex; align-items: center; justify-content: center; cursor: pointer;
+        }
+        .dpad-btn:active { background: #a3e635; }
+
+        #mobile-menu-btn {
+            display: none; position: absolute; bottom: 120px; left: 20px;
+            background: #ffffff; color: #000; border: 3px solid #000;
+            font-family: monospace; font-weight: bold; font-size: 14px;
+            width: 70px; height: 70px; align-items: center; justify-content: center;
+            cursor: pointer; z-index: 10; text-align: center;
+        }
+        #mobile-menu-btn:active { background: #a3e635; }
+
+        /* Show mobile layouts specifically on touchscreen interfaces */
+        @media (pointer: coarse) {
+            .mobile-dpad { display: grid; }
+            #mobile-menu-btn { display: flex; }
+        }
     </style>
 
     <!-- Firebase SDK Legacy Compatibility Modules -->
@@ -62,9 +122,18 @@
 </head>
 <body>
 
-    <div id="coords-panel" class="hud-panel">X: 0 | Y: 0 | Z: 0<br>Biome: Loading...</div>
+    <!-- Visibility Master Controller Toggle Button -->
+    <button id="gui-toggle-btn" onclick="toggleAllGUI()">HIDE GUI</button>
+
+    <!-- Speed Input Control Menu -->
+    <div id="speed-panel" class="hud-panel toggleable-gui">
+        <label for="speed-input">SPEED:</label>
+        <input type="number" id="speed-input" value="5" min="1" step="5" oninput="updateCustomSpeed(this.value)">
+    </div>
+
+    <div id="coords-panel" class="hud-panel toggleable-gui">X: 0 | Y: 0 | Z: 0<br>Biome: Loading...</div>
     
-    <div id="compass-panel" class="hud-panel">
+    <div id="compass-panel" class="hud-panel toggleable-gui">
         <div class="compass-box">
             <div class="dir n">N</div>
             <div class="dir e">E</div>
@@ -73,7 +142,19 @@
         </div>
     </div>
 
-    <div id="hotbar-hint" class="hud-panel">GLOBAL LIVE ANARCHY SERVER<br>WASD / Arrows = Move Camera | Left-Click = Break | Right-Click = Place<br>Press E to toggle Block Menu</div>
+    <div id="signature-panel" class="hud-panel toggleable-gui">2026 smaulkuzmic</div>
+
+    <div id="hotbar-hint" class="hud-panel toggleable-gui">3D ANARCHY SERVER<br>WASD / Arrows = Move Camera | Left-Click = Break | Right-Click = Place<br>Press E to toggle Block Menu</div>
+
+    <!-- Phone Block Menu Overlay Button -->
+    <button id="mobile-menu-btn" class="toggleable-gui" onclick="toggleMobileInventory()">BLOCKS</button>
+
+    <!-- Phone Navigation Arrow D-Pad Layout System -->
+    <div class="mobile-dpad toggleable-gui">
+        <div></div><button class="dpad-btn" onpointerdown="setMobileKey('KeyW', true)" onpointerup="setMobileKey('KeyW', false)" onpointerleave="setMobileKey('KeyW', false)">▲</button><div></div>
+        <button class="dpad-btn" onpointerdown="setMobileKey('KeyA', true)" onpointerup="setMobileKey('KeyA', false)" onpointerleave="setMobileKey('KeyA', false)">◀</button><div></div><button class="dpad-btn" onpointerdown="setMobileKey('KeyD', true)" onpointerup="setMobileKey('KeyD', false)" onpointerleave="setMobileKey('KeyD', false)">▶</button>
+        <div></div><button class="dpad-btn" onpointerdown="setMobileKey('KeyS', true)" onpointerup="setMobileKey('KeyS', false)" onpointerleave="setMobileKey('KeyS', false)">▼</button><div></div>
+    </div>
 
     <div id="inventory">
         <div class="grid" id="inv-grid"></div>
@@ -114,7 +195,18 @@
         let targetX = 0, targetY = 0, targetZ = 0;
         let placeX = 0, placeY = 0, placeZ = 0;
         let hasTarget = false;
+        
+        let currentSpeedMultiplier = 5;
+        function updateCustomSpeed(val) {
+            let parsed = parseFloat(val);
+            if (!isNaN(parsed) && parsed > 0) {
+                currentSpeedMultiplier = parsed;
+            } else {
+                currentSpeedMultiplier = 5;
+            }
+        }
 
+        // Expanded Core Voxel Array Map (8 New Blocks Added: Total 21)
         const BLOCKS = {
             1:  { name: 'Grass Block',  top: '#55a630', side: '#3b7a22' }, 
             2:  { name: 'Dirt',         top: '#865e3c', side: '#5c4029' },
@@ -128,9 +220,32 @@
             10: { name: 'Bedrock',      top: '#27272a', side: '#18181b' },
             11: { name: 'Brick Block',  top: '#b91c1c', side: '#891515' },
             12: { name: 'Glowstone',    top: '#f59e0b', side: '#d97706' },
-            13: { name: 'Snow Block',   top: '#f8fafc', side: '#cbd5e1' }
+            13: { name: 'Snow Block',   top: '#f8fafc', side: '#cbd5e1' },
+            // --- NEW ANARCHY BLOCKS ---
+            14: { name: 'Obsidian',     top: '#3b0764', side: '#2e0854' },
+            15: { name: 'Netherrack',   top: '#7f1d1d', side: '#450a0a' },
+            16: { name: 'Gold Block',   top: '#facc15', side: '#ca8a04' },
+            17: { name: 'Iron Ore',     top: '#fed7aa', side: '#f97316' },
+            18: { name: 'Lapis Lazuli', top: '#1d4ed8', side: '#1e3a8a' },
+            19: { name: 'Emerald',      top: '#10b981', side: '#047857' },
+            20: { name: 'Magma Block',  top: '#ea580c', side: '#9a3412' },
+            21: { name: 'Coal Ore',     top: '#4b5563', side: '#1f2937' }
         };
         let selectedBlockId = 1;
+
+        let guiVisible = true;
+        function toggleAllGUI() {
+            guiVisible = !guiVisible;
+            document.getElementById('gui-toggle-btn').innerText = guiVisible ? 'HIDE GUI' : 'SHOW GUI';
+            document.querySelectorAll('.toggleable-gui').forEach(el => {
+                el.style.opacity = guiVisible ? '1' : '0';
+                el.style.pointerEvents = guiVisible ? 'auto' : 'none';
+            });
+            if(!guiVisible && isInvOpen) {
+                isInvOpen = false;
+                document.getElementById('inventory').style.display = 'none';
+            }
+        }
 
         const SEED = 4829104;
         function hash2D(x, y) {
@@ -175,7 +290,6 @@
             return { biome, stack };
         }
 
-        // Realtime sync pipeline global network hooks
         let worldModifications = {};
         db.on('value', (snapshot) => {
             const data = snapshot.val();
@@ -183,8 +297,20 @@
         });
 
         const keys = {};
-        window.addEventListener('keydown', e => { keys[e.code] = true; });
+        window.addEventListener('keydown', e => { 
+            if (document.activeElement === document.getElementById('speed-input')) return;
+            keys[e.code] = true; 
+        });
         window.addEventListener('keyup', e => { keys[e.code] = false; });
+
+        // Touch Control Hook Updates
+        function setMobileKey(code, state) { keys[code] = state; }
+        function toggleMobileInventory() {
+            if(!guiVisible) return;
+            isInvOpen = !isInvOpen;
+            document.getElementById('inventory').style.display = isInvOpen ? 'block' : 'none';
+            if(isInvOpen) renderInventory();
+        }
 
         const invMenu = document.getElementById('inventory');
         let isInvOpen = false;
@@ -204,6 +330,7 @@
         renderInventory();
 
         window.addEventListener('keydown', e => {
+            if (document.activeElement === document.getElementById('speed-input')) return;
             if (e.key.toLowerCase() === 'e') {
                 isInvOpen = !isInvOpen;
                 invMenu.style.display = isInvOpen ? 'block' : 'none';
@@ -260,7 +387,18 @@
             }
         }
 
-        window.addEventListener('mousemove', e => { mouseX = e.clientX; mouseY = e.clientY; });
+        // Shared Pointer Tracker Supporting Mobile Touch Events + Desktop Click Actions
+        function updatePointerPos(e) {
+            if(e.touches && e.touches.length > 0) {
+                mouseX = e.touches[0].clientX;
+                mouseY = e.touches[0].clientY;
+            } else {
+                mouseX = e.clientX;
+                mouseY = e.clientY;
+            }
+        }
+        window.addEventListener('mousemove', updatePointerPos);
+        window.addEventListener('touchmove', updatePointerPos, {passive: true});
         window.addEventListener('contextmenu', e => e.preventDefault());
 
         window.addEventListener('wheel', e => {
@@ -269,8 +407,8 @@
             zoom = Math.max(0.1, Math.min(zoom, 5.0));
         }, { passive: true });
 
-        window.addEventListener('mousedown', e => {
-            if (isInvOpen || e.target.closest('#inventory')) return;
+        function processInteraction(buttonType, targetElement) {
+            if (isInvOpen || targetElement.closest('#inventory') || targetElement.closest('#speed-panel') || targetElement.closest('#gui-toggle-btn') || targetElement.closest('.mobile-dpad') || targetElement.closest('#mobile-menu-btn')) return;
             runGridPhysicsRaycast();
 
             const tKey = `${targetX}_${targetY}`;
@@ -279,11 +417,11 @@
             let currentTStack = worldModifications[tKey] ? [...worldModifications[tKey]] : [...generateTerrain(targetX, targetY).stack];
             let currentPStack = worldModifications[pKey] ? [...worldModifications[pKey]] : [...generateTerrain(placeX, placeY).stack];
 
-            if (e.button === 2) { // Right Click - Place
+            if (buttonType === 2) { // Place Action
                 while(currentPStack.length <= placeZ) currentPStack.push(0);
                 currentPStack[placeZ] = selectedBlockId;
                 db.child(pKey).set(currentPStack);
-            } else if (e.button === 0) { // Left Click - Break
+            } else if (buttonType === 0) { // Break Action
                 if (hasTarget && targetZ < currentTStack.length) {
                     currentTStack[targetZ] = 0;
                     while(currentTStack.length > 0 && currentTStack[currentTStack.length - 1] === 0) {
@@ -296,10 +434,17 @@
                     }
                 }
             }
-        });
+        }
+
+        window.addEventListener('mousedown', e => processInteraction(e.button, e.target));
+        window.addEventListener('touchstart', e => {
+            updatePointerPos(e);
+            // Single touch behaves as left-click break, double touch can place blocks via code logic if preferred
+            processInteraction(0, e.target);
+        }, {passive: true});
 
         function loop() {
-            const speedMultiplier = 0.25 / zoom;
+            const speedMultiplier = (0.0125 * currentSpeedMultiplier) / zoom;
 
             if (keys['KeyW'] || keys['ArrowUp'])    camY -= speedMultiplier;
             if (keys['KeyS'] || keys['ArrowDown'])  camY += speedMultiplier;
@@ -342,15 +487,12 @@
 
                         if (bx + size < 0 || bx > canvas.width || by + size + tiltOffset < 0 || by - (size * 8) > canvas.height) continue;
 
-                        // Isometric Depth Wall Panels
                         ctx.fillStyle = b.side;
                         ctx.fillRect(bx, by + size, size, tiltOffset);
 
-                        // Isometric Top Surface Face
                         ctx.fillStyle = b.top;
                         ctx.fillRect(bx, by, size, size);
 
-                        // Highlight Selection Box Focus Frame
                         if (hasTarget && targetX === gx && targetY === gy && targetZ === z) {
                             ctx.strokeStyle = "#ffffff";
                             ctx.lineWidth = Math.max(2.0, size * 0.08);
