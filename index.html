@@ -73,7 +73,7 @@
         </div>
     </div>
 
-    <div id="hotbar-hint" class="hud-panel">GLOBAL ANARCHY SERVER<br>WASD / Arrows = Move Camera | Left-Click = Break | Right-Click = Place<br>Press E to toggle Block Menu</div>
+    <div id="hotbar-hint" class="hud-panel">GLOBAL LIVE GITHUB ANARCHY SERVER<br>WASD / Arrows = Move Camera | Left-Click = Break | Right-Click = Place<br>Press E to toggle Block Menu</div>
 
     <div id="inventory">
         <div class="grid" id="inv-grid"></div>
@@ -87,7 +87,7 @@
             databaseURL: "https://anarchy-voxel-default-rtdb.firebaseio.com/"
         };
         firebase.initializeApp(firebaseConfig);
-        const db = firebase.database().ref("anarchy_world_chunks");
+        const db = firebase.database().ref("github_anarchy_universe");
 
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
@@ -166,7 +166,7 @@
             return { biome, stack };
         }
 
-        // Live Anarchy Synchronizer Network Pipeline
+        // Live Synchronizer Realtime Pipeline
         let worldModifications = {};
         db.on('value', (snapshot) => {
             const data = snapshot.val();
@@ -204,7 +204,7 @@
             }
         });
 
-        // FIXED RAYCASTER: Uses correct underscore keys matching the live tracking map state
+        // 3D Matrix Raycaster Pipeline
         function runGridPhysicsRaycast() {
             const size = BASE_TILE_SIZE * zoom;
             const tiltOffset = size * 0.4; 
@@ -224,7 +224,7 @@
 
             for (let gy = startY; gy <= endY; gy++) {
                 for (let gx = startX; gx <= endX; gx++) {
-                    const key = `${gx}_${gy}`; // Fixed to read correct live tracker lookup string
+                    const key = `${gx}_${gy}`; 
                     let stack = worldModifications[key] || generateTerrain(gx, gy).stack;
 
                     for (let z = stack.length - 1; z >= 0; z--) {
@@ -246,7 +246,6 @@
                 }
             }
 
-            // Safe fallback if clicking empty terrain boundaries
             if (!hasTarget) {
                 targetX = Math.floor((mouseX - centerX) / size + camX);
                 targetY = Math.floor((mouseY - centerY) / size + camY);
@@ -333,11 +332,11 @@
 
                         if (bx + size < 0 || bx > canvas.width || by + size + tiltOffset < 0 || by - (size * 8) > canvas.height) continue;
 
-                        // Satellite View 3D Depth Plate
+                        // Satellite View Depth Extrusions
                         ctx.fillStyle = b.side;
                         ctx.fillRect(bx, by + size, size, tiltOffset);
 
-                        // High Altitude Surface Face
+                        // High Altitude Face Plate
                         ctx.fillStyle = b.top;
                         ctx.fillRect(bx, by, size, size);
 
