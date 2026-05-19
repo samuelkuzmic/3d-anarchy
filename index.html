@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Satellite View - REAL LIVE ANARCHY ENGINE</title>
+    <link rel="icon" href="data:,">
+    <style>
+        body, html {
+            margin: 0; padding: 0; overflow: hidden;
+            background: #111; font-family: monospace;
+            user-select: none; -webkit-user-select: none;
+        }
+        canvas { display: block; width: 100vw; height: 100vh; }
+        
+        /* Rigid Stark White UI - Flat, Zero Shadows */
+        .hud-panel {
+            position: absolute; color: #000000;
+            background: #ffffff;
+            padding: 10px 14px; border-radius: 0px; pointer-events: none;
+            border: 3px solid #000000;
+            font-size: 13px; font-weight: bold;
+        }
+        #coords-panel { bottom: 20px; left: 20px; }
+        
+        #compass-panel { 
+            top: 20px; right: 20px; width: 60px; height: 60px;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .compass-box { position: relative; width: 100%; height: 100%; }
+        .dir { position: absolute; font-weight: bold; font-size: 12px; color: #000; }
+        .n { top: 2px; left: 50%; transform: translateX(-50%); color: #ff0000; }
+        .s { bottom: 2px; left: 50%; transform: translateX(-50%); }
+        .w { left: 4px; top: 50%; transform: translateY(-50%); }
+        .e { right: 4px; top: 50%; transform: translateY(-50%); }
+
+        #hotbar-hint { bottom: 20px; left: 50%; transform: translateX(-50%); text-align: center; }
+        
+        /* Sharp White Grid Inventory */
+        #inventory {
+            display: none; position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%); background: #ffffff;
+            border: 4px solid #000000; padding: 20px; border-radius: 0px;
+            pointer-events: auto;
+        }
+        .grid { display: grid; grid-template-columns: repeat(4, 80px); gap: 10px; }
+        .slot {
+            width: 80px; height: 80px; border: 2px solid #000000; 
+            background: #ffffff; border-radius: 0px; cursor: pointer;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            box-sizing: border-box;
+        }
+        .slot:hover { background: #eeeeee; }
+        .slot.active { background: #a3e635; border-width: 3px; }
+        .preview { width: 30px; height: 30px; border: 1px solid #000; }
+        .label { font-size: 11px; color: #000000; text-align: center; margin-top: 6px; font-weight: bold; }
+    </style>
+
+    <!-- Firebase SDK Core Modules for Global Realtime Data Routing -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+</head>
+<body>
+
+    <div id="coords-panel" class="hud-panel">X: 0 | Y: 0 | Z: 0<br>Biome: Loading...</div>
+    
+    <div id="compass-panel" class="hud-panel">
+        <div class="compass-box">
+            <div class="dir n">N</div>
+            <div class="dir e">E</div>
+            <div class="dir s">S</div>
+            <div class="dir w">W</div>
+        </div>
+    </div>
+
+    <div id="hotbar-hint" class="hud-panel">GLOBAL ANARCHY SERVER<br>WASD / Arrows = Move Camera | Left-Click = Break | Right-Click = Place<br>Press E to toggle Block Menu</div>
+
+    <div id="inventory">
+        <div class="grid" id="inv-grid"></div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        // Global Public Anarchy Database Cluster Configuration
+        const firebaseConfig = {
+            databaseURL: "https://anarchy-voxel-default-rtdb.firebaseio.com/"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database().ref("anarchy_world_chunks");
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+        window.addEventListener('resize', resize);
+        resize();
+
+        let zoom = 1.0;
+        const BASE_TILE_SIZE = 40; 
+        let camX = 0, camY = 0;
+        let mouseX = canvas.width / 2, mouseY = canvas.height / 2;
+        
+        let targetX = 0, targetY = 0, targetZ = 0;
+        let placeX = 0, placeY = 0, placeZ = 0;
+        let hasTarget = false;
+
+        // Classic Color Schemes
+        const BLOCKS = {
+            1:  { name: 'Grass Block',  top: '#55a630', side: '#3b7a22' }, 
+            2:  { name: 'Dirt',         top: '#865e3c', side: '#5c4029' },
+            3:  { name: 'Stone',        top: '#8a8a8a', side: '#666666' },
+            4:  { name: 'Oak Log',      top: '#b08957', side: '#7e613b' },
+            5:  { name: 'Leaves',       top: '#2d6a4f', side: '#1f4a36' },
+            6:  { name: 'Planks',       top: '#d4a373', side: '#a67f59' },
+            7:  { name: 'Sand',         top: '#e9d8a6', side: '#c4b585' },
+            8:  { name: 'Diamond Ore',  top: '#0ea5e9', side: '#0284c7' },
+            9:  { name: 'Water',        top: 'rgba(14, 116, 144, 0.7)', side: 'rgba(12, 74, 96, 0.7)' },
+            10: { name: 'Bedrock',      top: '#27272a', side: '#18181b' },
+            11: { name: 'Brick Block',  top: '#b91c1c', side: '#891515' },
+            12: { name: 'Glowstone',    top: '#f59e0b', side: '#d97706' },
+            13: { name: 'Snow Block',   top: '#f8fafc', side: '#cbd5e1' }
+        };
+        let selectedBlockId = 1;
+
+        const SEED = 4829104;
+        function hash2D(x, y) {
+            let h = SEED ^ (x * 374761393) ^ (y * 668265263);
+            h = (h ^ (h >>> 13)) * 1274126177;
+            return (h ^ (h >>> 16)) >>> 0;
+        }
+
+        function getNoise(x, y, freq) {
+            const cx = Math.floor(x * freq), cy = Math.floor(y * freq);
+            const wx = (x * freq) - cx, wy = (y * freq) - cy;
+            const h11 = (hash2D(cx, cy) % 100) / 100, h21 = (hash2D(cx+1, cy) % 100) / 100;
+            const h12 = (hash2D(cx, cy+1) % 100) / 100, h22 = (hash2D(cx+1, cy+1) % 100) / 100;
+            return (h11*(1-wx)+h21*wx)*(1-wy) + (h12*(1-wx)+h22*wx)*wy;
+        }
+
+        function generateTerrain(gx, gy) {
+            const elevation = getNoise(gx, gy, 0.012);
+            const detail = getNoise(gx, gy, 0.08);
+            let stack = [10];
+            let biome = "Plains";
+
+            if (elevation < 0.33) {
+                biome = "Oceans";
+                let h = Math.floor(detail * 3) + 2;
+                for(let i=0; i<h; i++) stack.push(3);
+                stack.push(7);
+                while(stack.length < 6) stack.push(9);
+            } else if (elevation > 0.67) {
+                biome = "High Peaks";
+                let h = Math.floor((elevation - 0.67) * 20) + 6;
+                for(let i=0; i<h-2; i++) stack.push(3);
+                stack.push(2);
+                stack.push(13);
+            } else {
+                biome = "Forestlands";
+                let h = Math.floor(detail * 4) + 4;
+                for(let i=0; i<h-1; i++) stack.push(3);
+                stack.push(2);
+                stack.push(1);
+            }
+            return { biome, stack };
+        }
+
+        // Live Anarchy Synchronizer Network Pipeline
+        let worldModifications = {};
+        db.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                worldModifications = data;
+            }
+        });
+
+        const keys = {};
+        window.addEventListener('keydown', e => { keys[e.code] = true; });
+        window.addEventListener('keyup', e => { keys[e.code] = false; });
+
+        const invMenu = document.getElementById('inventory');
+        let isInvOpen = false;
+
+        function renderInventory() {
+            const grid = document.getElementById('inv-grid');
+            grid.innerHTML = '';
+            Object.keys(BLOCKS).forEach(id => {
+                const b = BLOCKS[id];
+                const slot = document.createElement('div');
+                slot.className = `slot ${id == selectedBlockId ? 'active' : ''}`;
+                slot.innerHTML = `<div class="preview" style="background:${b.top};"></div><div class="label">${b.name}</div>`;
+                slot.onclick = () => { selectedBlockId = parseInt(id); isInvOpen = false; invMenu.style.display = 'none'; };
+                grid.appendChild(slot);
+            });
+        }
+        renderInventory();
+
+        window.addEventListener('keydown', e => {
+            if (e.key.toLowerCase() === 'e') {
+                isInvOpen = !isInvOpen;
+                invMenu.style.display = isInvOpen ? 'block' : 'none';
+                if(isInvOpen) renderInventory();
+            }
+        });
+
+        // FIXED RAYCASTER: Uses correct underscore keys matching the live tracking map state
+        function runGridPhysicsRaycast() {
+            const size = BASE_TILE_SIZE * zoom;
+            const tiltOffset = size * 0.4; 
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+
+            hasTarget = false;
+            let highestFoundZ = -1;
+
+            const rx = Math.ceil(canvas.width / size) + 2;
+            const ry = Math.ceil(canvas.height / size) + 8;
+            
+            const startX = Math.floor(camX) - rx;
+            const endX = Math.floor(camX) + rx;
+            const startY = Math.floor(camY) - ry;
+            const endY = Math.floor(camY) + ry;
+
+            for (let gy = startY; gy <= endY; gy++) {
+                for (let gx = startX; gx <= endX; gx++) {
+                    const key = `${gx}_${gy}`; // Fixed to read correct live tracker lookup string
+                    let stack = worldModifications[key] || generateTerrain(gx, gy).stack;
+
+                    for (let z = stack.length - 1; z >= 0; z--) {
+                        if (stack[z] === undefined || stack[z] === 0) continue;
+
+                        const bx = (gx - camX) * size + centerX;
+                        const by = (gy - camY) * size + centerY - (z * tiltOffset);
+
+                        if (mouseX >= bx && mouseX <= bx + size && mouseY >= by && mouseY <= by + size) {
+                            if (z > highestFoundZ) {
+                                highestFoundZ = z;
+                                targetX = gx; targetY = gy; targetZ = z;
+                                placeX = gx; placeY = gy; placeZ = z + 1;
+                                hasTarget = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Safe fallback if clicking empty terrain boundaries
+            if (!hasTarget) {
+                targetX = Math.floor((mouseX - centerX) / size + camX);
+                targetY = Math.floor((mouseY - centerY) / size + camY);
+                targetZ = 0;
+                placeX = targetX; placeY = targetY; placeZ = 0;
+            }
+        }
+
+        window.addEventListener('mousemove', e => { mouseX = e.clientX; mouseY = e.clientY; });
+        window.addEventListener('contextmenu', e => e.preventDefault());
+
+        window.addEventListener('wheel', e => {
+            if (isInvOpen) return;
+            if (e.deltaY < 0) zoom *= 1.15; else zoom /= 1.15;
+            zoom = Math.max(0.1, Math.min(zoom, 5.0));
+        }, { passive: true });
+
+        window.addEventListener('mousedown', e => {
+            if (isInvOpen || e.target.closest('#inventory')) return;
+            runGridPhysicsRaycast();
+
+            const tKey = `${targetX}_${targetY}`;
+            const pKey = `${placeX}_${placeY}`;
+
+            let currentTStack = worldModifications[tKey] ? [...worldModifications[tKey]] : [...generateTerrain(targetX, targetY).stack];
+            let currentPStack = worldModifications[pKey] ? [...worldModifications[pKey]] : [...generateTerrain(placeX, placeY).stack];
+
+            if (e.button === 2) { // Right Click - Place
+                while(currentPStack.length <= placeZ) currentPStack.push(0);
+                currentPStack[placeZ] = selectedBlockId;
+                db.child(pKey).set(currentPStack);
+            } else if (e.button === 0) { // Left Click - Break
+                if (hasTarget && targetZ < currentTStack.length) {
+                    currentTStack[targetZ] = 0;
+                    while(currentTStack.length > 0 && currentTStack[currentTStack.length - 1] === 0) {
+                        currentTStack.pop();
+                    }
+                    db.child(tKey).set(currentTStack);
+                }
+            }
+        });
+
+        function loop() {
+            const speedMultiplier = 0.25 / zoom;
+
+            if (keys['KeyW'] || keys['ArrowUp'])    camY -= speedMultiplier;
+            if (keys['KeyS'] || keys['ArrowDown'])  camY += speedMultiplier;
+            if (keys['KeyA'] || keys['ArrowLeft'])  camX -= speedMultiplier;
+            if (keys['KeyD'] || keys['ArrowRight']) camX += speedMultiplier;
+
+            runGridPhysicsRaycast();
+
+            const currentBiome = generateTerrain(targetX, targetY).biome;
+            document.getElementById('coords-panel').innerHTML = `X: ${targetX} | Y: ${targetY} | Z: ${hasTarget ? targetZ : 0}<br>Biome: ${currentBiome}`;
+
+            ctx.fillStyle = "#111111";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            const size = BASE_TILE_SIZE * zoom;
+            const tiltOffset = size * 0.4; 
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+
+            const rx = Math.ceil(canvas.width / size) + 2;
+            const ry = Math.ceil(canvas.height / size) + 12;
+            
+            const startX = Math.floor(camX) - rx;
+            const endX = Math.floor(camX) + rx;
+            const startY = Math.floor(camY) - ry;
+            const endY = Math.floor(camY) + ry;
+
+            for (let gy = startY; gy <= endY; gy++) {
+                for (let gx = startX; gx <= endX; gx++) {
+                    const key = `${gx}_${gy}`;
+                    let stack = worldModifications[key] || generateTerrain(gx, gy).stack;
+
+                    for (let z = 0; z < stack.length; z++) {
+                        const blockId = stack[z];
+                        if (!blockId || blockId === 0) continue;
+
+                        const b = BLOCKS[blockId];
+                        const bx = (gx - camX) * size + centerX;
+                        const by = (gy - camY) * size + centerY - (z * tiltOffset);
+
+                        if (bx + size < 0 || bx > canvas.width || by + size + tiltOffset < 0 || by - (size * 8) > canvas.height) continue;
+
+                        // Satellite View 3D Depth Plate
+                        ctx.fillStyle = b.side;
+                        ctx.fillRect(bx, by + size, size, tiltOffset);
+
+                        // High Altitude Surface Face
+                        ctx.fillStyle = b.top;
+                        ctx.fillRect(bx, by, size, size);
+
+                        // Zero-lag focus outline tracking box
+                        if (hasTarget && targetX === gx && targetY === gy && targetZ === z) {
+                            ctx.strokeStyle = "#ffffff";
+                            ctx.lineWidth = Math.max(2.0, size * 0.08);
+                            ctx.strokeRect(bx, by, size, size + tiltOffset);
+                        }
+                    }
+                }
+            }
+            requestAnimationFrame(loop);
+        }
+        requestAnimationFrame(loop);
+    </script>
+</body>
+</html>
