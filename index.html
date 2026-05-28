@@ -14,7 +14,6 @@
         }
         canvas { display: block; width: 100vw; height: 100vh; }
         
-        /* Rigid Stark White UI - Flat, Zero Shadows */
         .hud-panel {
             position: absolute; color: #000000;
             background: #ffffff;
@@ -40,7 +39,6 @@
 
         #hotbar-hint { bottom: 20px; left: 50%; transform: translateX(-50%); text-align: center; pointer-events: none; }
         
-        /* Top Left Speed Control Panel */
         #speed-panel {
             top: 20px; left: 20px;
             display: flex; align-items: center; gap: 8px;
@@ -57,16 +55,17 @@
 
         #signature-panel { bottom: 20px; right: 20px; font-size: 10px; padding: 6px 10px; pointer-events: none; }
 
-        /* Master GUI Visibility Controller Button */
-        #gui-toggle-btn {
-            position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+        .top-admin-btn {
+            position: absolute; top: 20px;
             background: #ffffff; color: #000; border: 3px solid #000;
             font-family: monospace; font-weight: bold; font-size: 12px;
             padding: 8px 14px; cursor: pointer; border-radius: 0px; z-index: 100;
+            text-decoration: none; display: inline-block; text-align: center;
         }
-        #gui-toggle-btn:active { background: #eeeeee; }
+        #gui-toggle-btn { left: 50%; transform: translateX(-105%); }
+        #map-toggle-btn { left: 50%; transform: translateX(5%); }
+        .top-admin-btn:hover { background: #eeeeee; }
 
-        /* Sharp White Grid Inventory */
         #inventory {
             display: none; position: absolute; top: 50%; left: 50%;
             transform: translate(-50%, -50%); background: #ffffff;
@@ -87,7 +86,6 @@
         .preview { width: 30px; height: 30px; border: 1px solid #000; }
         .label { font-size: 10px; color: #000000; text-align: center; margin-top: 4px; font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 100%; }
 
-        /* Mobile Layout HUD Additions */
         .mobile-dpad {
             display: none; position: absolute; bottom: 120px; right: 20px;
             grid-template-columns: repeat(3, 50px); grid-template-rows: repeat(3, 50px);
@@ -109,26 +107,81 @@
         }
         #mobile-menu-btn:active { background: #a3e635; }
 
-        /* Show mobile layouts specifically on touchscreen interfaces */
+        #identity-overlay {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(17, 17, 17, 0.9); z-index: 1000;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .identity-box {
+            background: #ffffff; border: 4px solid #000000;
+            padding: 30px; text-align: center; max-width: 350px; width: 85%;
+        }
+        .identity-box h2 { margin-top: 0; font-size: 18px; text-transform: uppercase; }
+        .identity-box input {
+            width: 100%; padding: 10px; box-sizing: border-box;
+            border: 3px solid #000; font-family: monospace; font-weight: bold;
+            font-size: 14px; outline: none; margin-bottom: 12px;
+        }
+        .identity-box button {
+            width: 100%; padding: 10px; background: #000; color: #fff;
+            border: none; font-family: monospace; font-weight: bold;
+            font-size: 14px; cursor: pointer; text-transform: uppercase;
+        }
+        .identity-box button:active { background: #a3e635; color: #000; }
+        #identity-error { color: #dc2626; font-size: 11px; font-weight: bold; margin-top: 8px; }
+
+        #chat-wrapper {
+            position: absolute; left: 20px; top: 80px;
+            width: 280px; z-index: 50; display: flex; flex-direction: column;
+            pointer-events: auto; transition: opacity 0.15s ease-in-out;
+        }
+        #chat-logs {
+            background: rgba(255, 255, 255, 0.95); border: 3px solid #000000;
+            border-bottom: none; height: 160px; overflow-y: auto;
+            padding: 6px; box-sizing: border-box;
+        }
+        .chat-line { font-size: 11px; font-weight: bold; line-height: 1.4; color: #000; margin-bottom: 4px; word-break: break-all; }
+        .chat-line span { color: #2563eb; }
+        #chat-input-form { display: flex; width: 100%; margin: 0; }
+        #chat-msg-field {
+            flex-grow: 1; background: #ffffff; color: #000000;
+            border: 3px solid #000000; padding: 6px; font-family: monospace;
+            font-size: 12px; font-weight: bold; outline: none; border-radius: 0;
+        }
+
         @media (pointer: coarse) {
             .mobile-dpad { display: grid; }
             #mobile-menu-btn { display: flex; }
         }
     </style>
 
-    <!-- Firebase SDK Legacy Compatibility Modules -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
 </head>
 <body>
 
-    <!-- Visibility Master Controller Toggle Button -->
-    <button id="gui-toggle-btn" onclick="toggleAllGUI()">HIDE GUI</button>
+    <div id="identity-overlay">
+        <div class="identity-box">
+            <h2>ENTER CHAT NAME</h2>
+            <input type="text" id="username-input" placeholder="USERNAME..." maxlength="14" autocomplete="off">
+            <button onclick="attemptIdentityClaim()">CONNECT</button>
+            <div id="identity-error"></div>
+        </div>
+    </div>
 
-    <!-- Speed Input Control Menu -->
+    <button id="gui-toggle-btn" class="top-admin-btn" onclick="toggleAllGUI()">HIDE GUI</button>
+    <a id="map-toggle-btn" class="top-admin-btn toggleable-gui" href="map.html">WORLD MAP</a>
+
     <div id="speed-panel" class="hud-panel toggleable-gui">
         <label for="speed-input">SPEED:</label>
         <input type="number" id="speed-input" value="5" min="1" step="5" oninput="updateCustomSpeed(this.value)">
+    </div>
+
+    <div id="chat-wrapper" class="toggleable-gui">
+        <div id="chat-logs"></div>
+        <form id="chat-input-form" onsubmit="broadcastMessage(event)">
+            <input type="text" id="chat-msg-field" placeholder="Press Enter to talk..." maxlength="70" autocomplete="off">
+        </form>
     </div>
 
     <div id="coords-panel" class="hud-panel toggleable-gui">X: 0 | Y: 0 | Z: 0<br>Biome: Loading...</div>
@@ -142,14 +195,12 @@
         </div>
     </div>
 
-    <div id="signature-panel" class="hud-panel toggleable-gui">2026 smaulkuzmic</div>
+    <div id="signature-panel" class="hud-panel toggleable-gui">2026 samuelkuzmic</div>
 
     <div id="hotbar-hint" class="hud-panel toggleable-gui">3D ANARCHY SERVER<br>WASD / Arrows = Move Camera | Left-Click = Break | Right-Click = Place<br>Press E to toggle Block Menu</div>
 
-    <!-- Phone Block Menu Overlay Button -->
     <button id="mobile-menu-btn" class="toggleable-gui" onclick="toggleMobileInventory()">BLOCKS</button>
 
-    <!-- Phone Navigation Arrow D-Pad Layout System -->
     <div class="mobile-dpad toggleable-gui">
         <div></div><button class="dpad-btn" onpointerdown="setMobileKey('KeyW', true)" onpointerup="setMobileKey('KeyW', false)" onpointerleave="setMobileKey('KeyW', false)">▲</button><div></div>
         <button class="dpad-btn" onpointerdown="setMobileKey('KeyA', true)" onpointerup="setMobileKey('KeyA', false)" onpointerleave="setMobileKey('KeyA', false)">◀</button><div></div><button class="dpad-btn" onpointerdown="setMobileKey('KeyD', true)" onpointerup="setMobileKey('KeyD', false)" onpointerleave="setMobileKey('KeyD', false)">▶</button>
@@ -163,10 +214,8 @@
     <canvas id="gameCanvas"></canvas>
 
     <script>
-        // --- CHANGE ONLY THIS FIELD ---
         const MY_DATABASE_URL = "https://d-anarchy-default-rtdb.firebaseio.com/";
 
-        // Automated Config Generation Engine
         const projectID = MY_DATABASE_URL.replace("https://", "").split(".")[0].replace("-default-rtdb", "");
         const firebaseConfig = {
             apiKey: "AIzaSy" + Math.random().toString(36).substring(2, 15) + "AnarchyVoxelKeyMock", 
@@ -176,9 +225,72 @@
             storageBucket: `${projectID}.appspot.com`
         };
         
-        // Connect Pipeline
         firebase.initializeApp(firebaseConfig);
-        const db = firebase.database().ref("github_anarchy_universe");
+        const rootRef = firebase.database().ref();
+        const db = rootRef.child("github_anarchy_universe");
+        const chatRef = rootRef.child("github_anarchy_chat");
+        const usersRef = rootRef.child("github_anarchy_active_users");
+
+        let myUniqueUsername = "";
+
+        function attemptIdentityClaim() {
+            const field = document.getElementById("username-input");
+            let chosen = field.value.trim().replace(/[^a-zA-Z0-9_\s]/g, "");
+            const errorDiv = document.getElementById("identity-error");
+
+            if(chosen.length < 2) {
+                errorDiv.innerText = "NAME MUST BE AT LEAST 2 CHARACTERS.";
+                return;
+            }
+
+            const lookupKey = chosen.toLowerCase().replace(/\s/g, "-");
+
+            usersRef.child(lookupKey).get().then((snapshot) => {
+                if (snapshot.exists()) {
+                    errorDiv.innerText = "THAT NAME IS ALREADY TAKEN!";
+                } else {
+                    usersRef.child(lookupKey).set(chosen);
+                    myUniqueUsername = chosen;
+                    document.getElementById("identity-overlay").style.display = "none";
+                    
+                    window.addEventListener("beforeunload", () => {
+                        usersRef.child(lookupKey).remove();
+                    });
+                }
+            }).catch(() => {
+                myUniqueUsername = chosen;
+                document.getElementById("identity-overlay").style.display = "none";
+            });
+        }
+
+        function broadcastMessage(event) {
+            event.preventDefault();
+            if(!myUniqueUsername) return;
+
+            const inputField = document.getElementById("chat-msg-field");
+            const text = inputField.value.trim();
+            if(!text) return;
+
+            chatRef.push({
+                sender: myUniqueUsername,
+                message: text,
+                timestamp: firebase.database.ServerValue.TIMESTAMP
+            });
+            inputField.value = "";
+            setTimeout(() => { inputField.focus(); }, 20);
+        }
+
+        chatRef.limitToLast(35).on("child_added", (snapshot) => {
+            const packet = snapshot.val();
+            if(!packet) return;
+            
+            const container = document.getElementById("chat-logs");
+            const el = document.createElement("div");
+            el.className = "chat-line";
+            el.innerHTML = `<span>&lt;${packet.sender}&gt;</span> ${packet.message}`;
+            container.appendChild(el);
+            container.scrollTop = container.scrollHeight;
+        });
 
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
@@ -206,7 +318,6 @@
             }
         }
 
-        // Expanded Core Voxel Array Map (8 New Blocks Added: Total 21)
         const BLOCKS = {
             1:  { name: 'Grass Block',  top: '#55a630', side: '#3b7a22' }, 
             2:  { name: 'Dirt',         top: '#865e3c', side: '#5c4029' },
@@ -221,7 +332,6 @@
             11: { name: 'Brick Block',  top: '#b91c1c', side: '#891515' },
             12: { name: 'Glowstone',    top: '#f59e0b', side: '#d97706' },
             13: { name: 'Snow Block',   top: '#f8fafc', side: '#cbd5e1' },
-            // --- NEW ANARCHY BLOCKS ---
             14: { name: 'Obsidian',     top: '#3b0764', side: '#2e0854' },
             15: { name: 'Netherrack',   top: '#7f1d1d', side: '#450a0a' },
             16: { name: 'Gold Block',   top: '#facc15', side: '#ca8a04' },
@@ -234,6 +344,7 @@
         let selectedBlockId = 1;
 
         let guiVisible = true;
+
         function toggleAllGUI() {
             guiVisible = !guiVisible;
             document.getElementById('gui-toggle-btn').innerText = guiVisible ? 'HIDE GUI' : 'SHOW GUI';
@@ -241,7 +352,7 @@
                 el.style.opacity = guiVisible ? '1' : '0';
                 el.style.pointerEvents = guiVisible ? 'auto' : 'none';
             });
-            if(!guiVisible && isInvOpen) {
+            if(!guiVisible) {
                 isInvOpen = false;
                 document.getElementById('inventory').style.display = 'none';
             }
@@ -298,12 +409,11 @@
 
         const keys = {};
         window.addEventListener('keydown', e => { 
-            if (document.activeElement === document.getElementById('speed-input')) return;
+            if (document.activeElement === document.getElementById('speed-input') || document.activeElement === document.getElementById('chat-msg-field') || document.activeElement === document.getElementById('username-input')) return;
             keys[e.code] = true; 
         });
         window.addEventListener('keyup', e => { keys[e.code] = false; });
 
-        // Touch Control Hook Updates
         function setMobileKey(code, state) { keys[code] = state; }
         function toggleMobileInventory() {
             if(!guiVisible) return;
@@ -330,7 +440,7 @@
         renderInventory();
 
         window.addEventListener('keydown', e => {
-            if (document.activeElement === document.getElementById('speed-input')) return;
+            if (document.activeElement === document.getElementById('speed-input') || document.activeElement === document.getElementById('chat-msg-field') || document.activeElement === document.getElementById('username-input')) return;
             if (e.key.toLowerCase() === 'e') {
                 isInvOpen = !isInvOpen;
                 invMenu.style.display = isInvOpen ? 'block' : 'none';
@@ -387,7 +497,6 @@
             }
         }
 
-        // Shared Pointer Tracker Supporting Mobile Touch Events + Desktop Click Actions
         function updatePointerPos(e) {
             if(e.touches && e.touches.length > 0) {
                 mouseX = e.touches[0].clientX;
@@ -408,7 +517,7 @@
         }, { passive: true });
 
         function processInteraction(buttonType, targetElement) {
-            if (isInvOpen || targetElement.closest('#inventory') || targetElement.closest('#speed-panel') || targetElement.closest('#gui-toggle-btn') || targetElement.closest('.mobile-dpad') || targetElement.closest('#mobile-menu-btn')) return;
+            if (isInvOpen || !myUniqueUsername || targetElement.closest('#inventory') || targetElement.closest('#speed-panel') || targetElement.closest('.top-admin-btn') || targetElement.closest('.mobile-dpad') || targetElement.closest('#mobile-menu-btn') || targetElement.closest('#chat-wrapper')) return;
             runGridPhysicsRaycast();
 
             const tKey = `${targetX}_${targetY}`;
@@ -439,7 +548,6 @@
         window.addEventListener('mousedown', e => processInteraction(e.button, e.target));
         window.addEventListener('touchstart', e => {
             updatePointerPos(e);
-            // Single touch behaves as left-click break, double touch can place blocks via code logic if preferred
             processInteraction(0, e.target);
         }, {passive: true});
 
