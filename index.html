@@ -17,8 +17,7 @@
         .hud-panel {
             position: absolute; color: #000000;
             background: #ffffff;
-            padding: 10px 14px; border-radius: 0px; 
-            border: 3px solid #000000;
+            padding: 10px 14px; border: 3px solid #000000;
             font-size: 13px; font-weight: bold;
             z-index: 10;
             transition: opacity 0.15s ease-in-out;
@@ -48,8 +47,7 @@
             background: #ffffff; color: #000000;
             border: 2px solid #000000; font-family: monospace;
             font-weight: bold; font-size: 13px;
-            width: 55px; padding: 4px 6px; border-radius: 0px;
-            outline: none; box-sizing: border-box;
+            width: 55px; padding: 4px 6px; outline: none; box-sizing: border-box;
         }
         #speed-input:focus { background: #a3e635; }
 
@@ -59,7 +57,7 @@
             position: absolute; top: 20px;
             background: #ffffff; color: #000; border: 3px solid #000;
             font-family: monospace; font-weight: bold; font-size: 12px;
-            padding: 8px 14px; cursor: pointer; border-radius: 0px; z-index: 100;
+            padding: 8px 14px; cursor: pointer; z-index: 100;
             text-decoration: none; display: inline-block; text-align: center;
         }
         #gui-toggle-btn { left: 50%; transform: translateX(-105%); }
@@ -69,7 +67,7 @@
         #inventory {
             display: none; position: absolute; top: 50%; left: 50%;
             transform: translate(-50%, -50%); background: #ffffff;
-            border: 4px solid #000000; padding: 20px; border-radius: 0px;
+            border: 4px solid #000000; padding: 20px;
             pointer-events: auto; z-index: 110;
             max-height: 80vh; overflow-y: auto;
         }
@@ -77,7 +75,7 @@
         @media(max-width: 450px) { .grid { grid-template-columns: repeat(3, 75px); } }
         .slot {
             width: 100%; height: 80px; border: 2px solid #000000; 
-            background: #ffffff; border-radius: 0px; cursor: pointer;
+            background: #ffffff; cursor: pointer;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
             box-sizing: border-box;
         }
@@ -130,22 +128,28 @@
         .identity-box button:active { background: #a3e635; color: #000; }
         #identity-error { color: #dc2626; font-size: 11px; font-weight: bold; margin-top: 8px; }
 
+        /* FIXED CHAT WRAPPER & VISIBILITY ATTRIBUTES */
         #chat-wrapper {
             position: absolute; left: 20px; top: 80px;
-            width: 280px; z-index: 50; display: flex; flex-direction: column;
+            width: 300px; z-index: 200; display: flex; flex-direction: column;
             pointer-events: auto; transition: opacity 0.15s ease-in-out;
+            background: transparent;
+        }
+        #chat-status {
+            background: #000; color: #fff; font-size: 9px; padding: 3px 6px;
+            font-weight: bold; text-transform: uppercase; border: 3px solid #000; border-bottom: none;
         }
         #chat-logs {
             background: rgba(255, 255, 255, 0.95); border: 3px solid #000000;
-            border-bottom: none; height: 160px; overflow-y: auto;
-            padding: 6px; box-sizing: border-box;
+            border-bottom: none; height: 180px; overflow-y: auto;
+            padding: 8px; box-sizing: border-box;
         }
         .chat-line { font-size: 11px; font-weight: bold; line-height: 1.4; color: #000; margin-bottom: 4px; word-break: break-all; }
-        .chat-line span { color: #2563eb; }
+        .chat-line span { color: #1e40af; }
         #chat-input-form { display: flex; width: 100%; margin: 0; }
         #chat-msg-field {
             flex-grow: 1; background: #ffffff; color: #000000;
-            border: 3px solid #000000; padding: 6px; font-family: monospace;
+            border: 3px solid #000000; padding: 8px; font-family: monospace;
             font-size: 12px; font-weight: bold; outline: none; border-radius: 0;
         }
 
@@ -163,8 +167,8 @@
     <div id="identity-overlay">
         <div class="identity-box">
             <h2>ENTER CHAT NAME</h2>
-            <input type="text" id="username-input" placeholder="USERNAME..." maxlength="14" autocomplete="off">
-            <button onclick="attemptIdentityClaim()">CONNECT</button>
+            <input type="text" id="username-input" placeholder="1+ characters..." maxlength="14" autocomplete="off">
+            <button type="button" onclick="attemptIdentityClaim()">CONNECT</button>
             <div id="identity-error"></div>
         </div>
     </div>
@@ -178,9 +182,10 @@
     </div>
 
     <div id="chat-wrapper" class="toggleable-gui">
+        <div id="chat-status">Connecting to Universe...</div>
         <div id="chat-logs"></div>
         <form id="chat-input-form" onsubmit="broadcastMessage(event)">
-            <input type="text" id="chat-msg-field" placeholder="Press Enter to talk..." maxlength="70" autocomplete="off">
+            <input type="text" id="chat-msg-field" placeholder="Press '/' or Enter to talk..." maxlength="70" autocomplete="off">
         </form>
     </div>
 
@@ -197,7 +202,7 @@
 
     <div id="signature-panel" class="hud-panel toggleable-gui">2026 samuelkuzmic</div>
 
-    <div id="hotbar-hint" class="hud-panel toggleable-gui">3D ANARCHY SERVER<br>WASD / Arrows = Move Camera | Left-Click = Break | Right-Click = Place<br>Press E to toggle Block Menu</div>
+    <div id="hotbar-hint" class="hud-panel toggleable-gui">3D ANARCHY SERVER<br>WASD / Arrows = Move | Left-Click = Break | Right-Click = Place<br>Press / or Enter to Chat | Press E for Inventory</div>
 
     <button id="mobile-menu-btn" class="toggleable-gui" onclick="toggleMobileInventory()">BLOCKS</button>
 
@@ -218,77 +223,87 @@
 
         const projectID = MY_DATABASE_URL.replace("https://", "").split(".")[0].replace("-default-rtdb", "");
         const firebaseConfig = {
-            apiKey: "AIzaSy" + Math.random().toString(36).substring(2, 15) + "AnarchyVoxelKeyMock", 
+            apiKey: "AIzaSy" + Math.random().toString(36).substring(2, 15) + "AnarchyKeyX", 
             authDomain: `${projectID}.firebaseapp.com`,
             databaseURL: MY_DATABASE_URL,
-            projectId: projectID,
-            storageBucket: `${projectID}.appspot.com`
+            projectId: projectID
         };
         
         firebase.initializeApp(firebaseConfig);
         const rootRef = firebase.database().ref();
         const db = rootRef.child("github_anarchy_universe");
         const chatRef = rootRef.child("github_anarchy_chat");
-        const usersRef = rootRef.child("github_anarchy_active_users");
 
         let myUniqueUsername = "";
+        let isTypingInChat = false;
+        const keys = {};
 
+        // Watch Firebase database server status live
+        rootRef.child(".info/connected").on("value", (snap) => {
+            const statusDiv = document.getElementById("chat-status");
+            if (snap.val() === true) {
+                statusDiv.style.background = "#16a34a";
+                statusDiv.innerText = "Connected to Server Grid";
+            } else {
+                statusDiv.style.background = "#dc2626";
+                statusDiv.innerText = "Disconnected / Reconnecting...";
+            }
+        });
+
+        // Supports 1-character usernames cleanly
         function attemptIdentityClaim() {
             const field = document.getElementById("username-input");
             let chosen = field.value.trim().replace(/[^a-zA-Z0-9_\s]/g, "");
             const errorDiv = document.getElementById("identity-error");
 
-            if(chosen.length < 2) {
-                errorDiv.innerText = "NAME MUST BE AT LEAST 2 CHARACTERS.";
+            if(chosen.length < 1) {
+                errorDiv.innerText = "NAME CANNOT BE BLANK.";
                 return;
             }
 
-            const lookupKey = chosen.toLowerCase().replace(/\s/g, "-");
-
-            usersRef.child(lookupKey).get().then((snapshot) => {
-                if (snapshot.exists()) {
-                    errorDiv.innerText = "THAT NAME IS ALREADY TAKEN!";
-                } else {
-                    usersRef.child(lookupKey).set(chosen);
-                    myUniqueUsername = chosen;
-                    document.getElementById("identity-overlay").style.display = "none";
-                    
-                    window.addEventListener("beforeunload", () => {
-                        usersRef.child(lookupKey).remove();
-                    });
-                }
-            }).catch(() => {
-                myUniqueUsername = chosen;
-                document.getElementById("identity-overlay").style.display = "none";
-            });
+            myUniqueUsername = chosen;
+            document.getElementById("identity-overlay").style.display = "none";
         }
 
+        // Fixed data sender loop
         function broadcastMessage(event) {
-            event.preventDefault();
-            if(!myUniqueUsername) return;
-
+            if(event) event.preventDefault();
+            
             const inputField = document.getElementById("chat-msg-field");
             const text = inputField.value.trim();
-            if(!text) return;
-
-            chatRef.push({
-                sender: myUniqueUsername,
-                message: text,
-                timestamp: firebase.database.ServerValue.TIMESTAMP
-            });
+            
+            if(text && myUniqueUsername) {
+                chatRef.push({
+                    sender: myUniqueUsername,
+                    message: text,
+                    timestamp: firebase.database.ServerValue.TIMESTAMP
+                });
+            }
+            
             inputField.value = "";
-            setTimeout(() => { inputField.focus(); }, 20);
+            inputField.blur(); 
+            isTypingInChat = false;
         }
 
-        chatRef.limitToLast(35).on("child_added", (snapshot) => {
-            const packet = snapshot.val();
-            if(!packet) return;
-            
+        // Catch focus bounds on input element to safely block player loop operations
+        const chatField = document.getElementById('chat-msg-field');
+        chatField.addEventListener('focus', () => { isTypingInChat = true; });
+        chatField.addEventListener('blur', () => { isTypingInChat = false; });
+
+        // Synchronous Live Chat Data Sync Loop
+        chatRef.limitToLast(35).on("value", (snapshot) => {
             const container = document.getElementById("chat-logs");
-            const el = document.createElement("div");
-            el.className = "chat-line";
-            el.innerHTML = `<span>&lt;${packet.sender}&gt;</span> ${packet.message}`;
-            container.appendChild(el);
+            container.innerHTML = ""; 
+            
+            snapshot.forEach((childSnapshot) => {
+                const packet = childSnapshot.val();
+                if(packet && packet.sender && packet.message) {
+                    const el = document.createElement("div");
+                    el.className = "chat-line";
+                    el.innerHTML = `<span>&lt;${packet.sender}&gt;</span> ${packet.message}`;
+                    container.appendChild(el);
+                }
+            });
             container.scrollTop = container.scrollHeight;
         });
 
@@ -311,13 +326,10 @@
         let currentSpeedMultiplier = 5;
         function updateCustomSpeed(val) {
             let parsed = parseFloat(val);
-            if (!isNaN(parsed) && parsed > 0) {
-                currentSpeedMultiplier = parsed;
-            } else {
-                currentSpeedMultiplier = 5;
-            }
+            if (!isNaN(parsed) && parsed > 0) currentSpeedMultiplier = parsed;
         }
 
+        // RESTORED ALL ORIGINAL BLOCKS
         const BLOCKS = {
             1:  { name: 'Grass Block',  top: '#55a630', side: '#3b7a22' }, 
             2:  { name: 'Dirt',         top: '#865e3c', side: '#5c4029' },
@@ -342,15 +354,18 @@
             21: { name: 'Coal Ore',     top: '#4b5563', side: '#1f2937' }
         };
         let selectedBlockId = 1;
-
         let guiVisible = true;
 
         function toggleAllGUI() {
             guiVisible = !guiVisible;
             document.getElementById('gui-toggle-btn').innerText = guiVisible ? 'HIDE GUI' : 'SHOW GUI';
             document.querySelectorAll('.toggleable-gui').forEach(el => {
-                el.style.opacity = guiVisible ? '1' : '0';
-                el.style.pointerEvents = guiVisible ? 'auto' : 'none';
+                if (el.id === 'chat-wrapper') {
+                    el.style.display = guiVisible ? 'flex' : 'none';
+                } else {
+                    el.style.opacity = guiVisible ? '1' : '0';
+                    el.style.pointerEvents = guiVisible ? 'auto' : 'none';
+                }
             });
             if(!guiVisible) {
                 isInvOpen = false;
@@ -403,16 +418,45 @@
 
         let worldModifications = {};
         db.on('value', (snapshot) => {
-            const data = snapshot.val();
-            worldModifications = data || {};
+            worldModifications = snapshot.val() || {};
         });
 
-        const keys = {};
+        // ROUTER HANDLING MINECRAFT-STYLE CHAT ASSIGNMENT
         window.addEventListener('keydown', e => { 
-            if (document.activeElement === document.getElementById('speed-input') || document.activeElement === document.getElementById('chat-msg-field') || document.activeElement === document.getElementById('username-input')) return;
+            if (document.activeElement && document.activeElement.id === 'username-input') return;
+
+            // '/' captures input safely and targets input field focus bounds
+            if (e.key === '/' && !isTypingInChat) {
+                e.preventDefault();
+                chatField.focus();
+                return;
+            }
+
+            if (isTypingInChat) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    broadcastMessage();
+                }
+                return;
+            }
+
             keys[e.code] = true; 
+            
+            if (e.key.toLowerCase() === 'e') {
+                isInvOpen = !isInvOpen;
+                invMenu.style.display = isInvOpen ? 'block' : 'none';
+                if(isInvOpen) renderInventory();
+            }
+
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                chatField.focus();
+            }
         });
-        window.addEventListener('keyup', e => { keys[e.code] = false; });
+        
+        window.addEventListener('keyup', e => { 
+            if (!isTypingInChat) keys[e.code] = false; 
+        });
 
         function setMobileKey(code, state) { keys[code] = state; }
         function toggleMobileInventory() {
@@ -439,16 +483,8 @@
         }
         renderInventory();
 
-        window.addEventListener('keydown', e => {
-            if (document.activeElement === document.getElementById('speed-input') || document.activeElement === document.getElementById('chat-msg-field') || document.activeElement === document.getElementById('username-input')) return;
-            if (e.key.toLowerCase() === 'e') {
-                isInvOpen = !isInvOpen;
-                invMenu.style.display = isInvOpen ? 'block' : 'none';
-                if(isInvOpen) renderInventory();
-            }
-        });
-
         function runGridPhysicsRaycast() {
+            if (isTypingInChat) return;
             const size = BASE_TILE_SIZE * zoom;
             const tiltOffset = size * 0.4; 
             const centerX = canvas.width / 2;
@@ -511,13 +547,13 @@
         window.addEventListener('contextmenu', e => e.preventDefault());
 
         window.addEventListener('wheel', e => {
-            if (isInvOpen) return;
+            if (isInvOpen || isTypingInChat) return;
             if (e.deltaY < 0) zoom *= 1.15; else zoom /= 1.15;
             zoom = Math.max(0.1, Math.min(zoom, 5.0));
         }, { passive: true });
 
         function processInteraction(buttonType, targetElement) {
-            if (isInvOpen || !myUniqueUsername || targetElement.closest('#inventory') || targetElement.closest('#speed-panel') || targetElement.closest('.top-admin-btn') || targetElement.closest('.mobile-dpad') || targetElement.closest('#mobile-menu-btn') || targetElement.closest('#chat-wrapper')) return;
+            if (isInvOpen || isTypingInChat || !myUniqueUsername || targetElement.closest('#inventory') || targetElement.closest('#speed-panel') || targetElement.closest('.top-admin-btn') || targetElement.closest('.mobile-dpad') || targetElement.closest('#mobile-menu-btn') || targetElement.closest('#chat-wrapper')) return;
             runGridPhysicsRaycast();
 
             const tKey = `${targetX}_${targetY}`;
@@ -526,11 +562,11 @@
             let currentTStack = worldModifications[tKey] ? [...worldModifications[tKey]] : [...generateTerrain(targetX, targetY).stack];
             let currentPStack = worldModifications[pKey] ? [...worldModifications[pKey]] : [...generateTerrain(placeX, placeY).stack];
 
-            if (buttonType === 2) { // Place Action
+            if (buttonType === 2) { 
                 while(currentPStack.length <= placeZ) currentPStack.push(0);
                 currentPStack[placeZ] = selectedBlockId;
                 db.child(pKey).set(currentPStack);
-            } else if (buttonType === 0) { // Break Action
+            } else if (buttonType === 0) { 
                 if (hasTarget && targetZ < currentTStack.length) {
                     currentTStack[targetZ] = 0;
                     while(currentTStack.length > 0 && currentTStack[currentTStack.length - 1] === 0) {
@@ -552,12 +588,13 @@
         }, {passive: true});
 
         function loop() {
-            const speedMultiplier = (0.0125 * currentSpeedMultiplier) / zoom;
-
-            if (keys['KeyW'] || keys['ArrowUp'])    camY -= speedMultiplier;
-            if (keys['KeyS'] || keys['ArrowDown'])  camY += speedMultiplier;
-            if (keys['KeyA'] || keys['ArrowLeft'])  camX -= speedMultiplier;
-            if (keys['KeyD'] || keys['ArrowRight']) camX += speedMultiplier;
+            if (!isTypingInChat) {
+                const speedMultiplier = (0.0125 * currentSpeedMultiplier) / zoom;
+                if (keys['KeyW'] || keys['ArrowUp'])    camY -= speedMultiplier;
+                if (keys['KeyS'] || keys['ArrowDown'])  camY += speedMultiplier;
+                if (keys['KeyA'] || keys['ArrowLeft'])  camX -= speedMultiplier;
+                if (keys['KeyD'] || keys['ArrowRight']) camX += speedMultiplier;
+            }
 
             runGridPhysicsRaycast();
 
