@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Anarchy Map</title>
+    <style>
+        body, html {
+            margin:0; padding:0; overflow:hidden;
+            background:#0a0a0a; font-family:monospace; color:#fff;
+            user-select: none; -webkit-user-select: none;
+        }
+        canvas { display:block; cursor:grab; width:100vw; height:100vh; image-rendering: pixelated; }
+        canvas:active { cursor:grabbing; }
+        
+        .map-hud {
+            position:absolute; background:rgba(255,255,255,0.95); color:#000;
+            padding:12px 16px; border:3px solid #000; font-weight:bold;
+            font-size:12px; z-index:10; pointer-events:none;
+        }
+        #title-hud { top:20px; left:20px; }
+        #controls-hud { bottom:20px; left:20px; }
+        #stats-hud { top:20px; right:20px; text-align:right; }
+
+        #game-nav-btn {
+            position: absolute; top: 70px; left: 20px;
+            background: #ffffff; color: #000000; border: 3px solid #000000;
+            font-family: monospace; font-weight: bold; font-size: 12px;
+            padding: 8px 14px; cursor: pointer; z-index: 100;
+            text-decoration: none; display: inline-block; pointer-events: auto;
+        }
+        #game-nav-btn:hover { background: #a3e635; }
+    </style>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+</head>
+<body>
+
+    <div id="title-hud" class="map-hud">3D ANARCHY LIVE NETWORK MAP</div>
+    <a id="game-nav-btn" href="index.html">RETURN TO GAME</a>
+    
+    <div id="stats-hud" class="map-hud">Status: Connected Live<br><span id="cursor-coords">X: 0 | Y: 0</span></div>
+    <div id="controls-hud" class="map-hud">Drag Left-Click = Pan Map<br>Scroll Mouse Wheel = Zoom In / Out</div>
+
+    <canvas id="mapCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('mapCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Full Complete 21-Voxel Color Translation Registry
+        const BLOCKS = {
+            1:  '#55a630', 2:  '#865e3c', 3:  '#8a8a8a', 4:  '#b08957', 
+            5:  '#2d6a4f', 6:  '#d4a373', 7:  '#e9d8a6', 8:  '#0ea5e9', 
+            9:  '#0e74ac', 10: '#27272a', 11: '#b91c1c', 12: '#f59e0b', 
+            13: '#f8fafc', 14: '#3b0764', 15: '#7f1d1d', 16: '#facc15', 
+            17: '#fed7aa', 18: '#1d4ed8', 19: '#10b981', 20: '#ea580c', 
+            21: '#4b5563'
+        };
+
+        // Network Config Synced to Global Realtime Pipeline Node
+        const MY_DATABASE_URL = "https://d-anarchy-default-rtdb.firebaseio.com/";
+        const projectID = MY_DATABASE_URL.replace("https://", "").split(".")[0].replace("-default-rtdb", "");
+        const firebaseConfig = {
+            apiKey: "AIzaSy" + Math.random().toString(36).substring(2, 15) + "AnarchyVoxelKeyMock", 
+            authDomain: `${projectID}.firebaseapp.com`,
+            databaseURL: MY_DATABASE_URL,
+            projectId: projectID
+        };
+        
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database().ref().child("github_anarchy_universe");
+
+        let worldModifications = {};
+        db.on('value', (snapshot) => {
+            worldModifications = snapshot.val() || {};
+            renderMap();
+        });
+
+        function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; renderMap(); }
+        window.addEventListener('resize', resize);
+
+        let mapZoom = 12; 
+        let offsetX = window.innerWidth / 2;
+        let offsetY = window.innerHeight / 2;
+        let isDragging = false;
+        let startDragX = 0, startDragY = 0;
+
+        const SEED = 4829104;
+        function hash2D(x, y) {
+            let h = SEED ^ (x * 374761393) ^ (y * 668265263);
+            h = (h ^ (h >>> 13)) * 1274126177;
+            return (h ^ (h >>> 16)) >>> 0;
+        }
+
+        function getNoise(x, y, freq) {
+            const cx = Math.floor(x * freq), cy = Math.floor(y * freq);
+            const wx = (x * freq) - cx, wy = (y * freq) - cy;
+            const h11 = (hash2D(cx, cy) % 100) / 100, h21 = (hash2D(cx+1, cy) % 100) / 100;
+            const h12 = (hash2D(cx, cy+1) % 100) / 100, h22 = (hash2D(cx+1, cy+1) % 100) / 100;
+            return (h11*(1-wx)+h21*wx)*(1-wy) + (h12*(1-wx)+h22*wx)*wy;
+        }
+
+        function generateTerrainTopBlock(gx, gy) {
+            const elevation = getNoise(gx, gy, 0.012);
+            const detail = getNoise(gx, gy, 0.08);
+            let stack = [10];
+
+            if (elevation < 0.33) {
+                let h = Math.floor(detail * 3) + 2;
+                for(let i=0; i<h; i++) stack.push(3);
+                stack.push(7);
+                while(stack.length < 6) stack.push(9);
+            } else if (elevation > 0.67) {
+                let h = Math.floor((elevation - 0.67) * 20) + 6;
+                for(let i=0; i<h-2; i++) stack.push(3);
+                stack.push(2);
+                stack.push(13);
+            } else {
+                let h = Math.floor(detail * 4) + 4;
+                for(let i=0; i<h-1; i++) stack.push(3);
+                stack.push(2);
+                stack.push(1);
+            }
+            
+            for (let z = stack.length - 1; z >= 0; z--) {
+                if (stack[z] && stack[z] !== 0) return stack[z];
+            }
+            return 1;
+        }
+
+        function renderMap() {
+            ctx.fillStyle = '#111111';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.imageSmoothingEnabled = false;
+
+            const minGridX = Math.floor((-offsetX) / mapZoom) - 1;
+            const maxGridX = Math.ceil((canvas.width - offsetX) / mapZoom) + 1;
+            const minGridY = Math.floor((-offsetY) / mapZoom) - 1;
+            const maxGridY = Math.ceil((canvas.height - offsetY) / mapZoom) + 1;
+
+            const step = mapZoom < 3 ? Math.ceil(3 / mapZoom) : 1;
+
+            for (let gy = minGridY; gy <= maxGridY; gy += step) {
+                for (let gx = minGridX; gx <= maxGridX; gx += step) {
+                    const key = `${gx}_${gy}`;
+                    let blockId = 0;
+
+                    if (worldModifications[key]) {
+                        let stack = worldModifications[key];
+                        for (let z = stack.length - 1; z >= 0; z--) {
+                            if (stack[z] && stack[z] !== 0) { blockId = stack[z]; break; }
+                        }
+                    } else {
+                        blockId = generateTerrainTopBlock(gx, gy);
+                    }
+
+                    if (blockId && BLOCKS[blockId]) {
+                        ctx.fillStyle = BLOCKS[blockId];
+                        const renderX = gx * mapZoom + offsetX;
+                        const renderY = gy * mapZoom + offsetY;
+                        const size = mapZoom * step;
+                        
+                        ctx.fillRect(Math.floor(renderX), Math.floor(renderY), Math.ceil(size), Math.ceil(size));
+                    }
+                }
+            }
+
+            ctx.strokeStyle = "rgba(163, 230, 53, 0.4)";
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(offsetX, 0); ctx.lineTo(offsetX, canvas.height);
+            ctx.moveTo(0, offsetY); ctx.lineTo(canvas.width, offsetY);
+            ctx.stroke();
+        }
+
+        canvas.addEventListener('mousedown', e => {
+            if (e.target.closest('#game-nav-btn')) return;
+            if(e.button === 0) {
+                isDragging = true;
+                startDragX = e.clientX - offsetX;
+                startDragY = e.clientY - offsetY;
+            }
+        });
+
+        window.addEventListener('mousemove', e => {
+            const currentMouseGridX = Math.floor((e.clientX - offsetX) / mapZoom);
+            const currentMouseGridY = Math.floor((e.clientY - offsetY) / mapZoom);
+            document.getElementById('cursor-coords').innerText = `X: ${currentMouseGridX} | Y: ${currentMouseGridY}`;
+
+            if (isDragging) {
+                offsetX = e.clientX - startDragX;
+                offsetY = e.clientY - startDragY;
+                renderMap();
+            }
+        });
+
+        window.addEventListener('mouseup', () => isDragging = false);
+
+        canvas.addEventListener('wheel', e => {
+            const mouseWorldX = (e.clientX - offsetX) / mapZoom;
+            const mouseWorldY = (e.clientY - offsetY) / mapZoom;
+
+            if (e.deltaY < 0) mapZoom *= 1.25; else mapZoom /= 1.25;
+            mapZoom = Math.max(1, Math.min(mapZoom, 100));
+
+            offsetX = e.clientX - mouseWorldX * mapZoom;
+            offsetY = e.clientY - mouseWorldY * mapZoom;
+            renderMap();
+        }, { passive: true });
+
+        resize();
+    </script>
+</body>
+</html>
